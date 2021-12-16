@@ -1,13 +1,6 @@
 package org.jenkinsci.plugins.api;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import com.google.gson.Gson;
 import org.acegisecurity.userdetails.UserDetails;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.IOUtils;
@@ -20,7 +13,12 @@ import org.scribe.model.Verb;
 import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuthService;
 
-import com.google.gson.Gson;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.logging.Logger;
 
 public class BitbucketApiService {
 
@@ -74,7 +72,7 @@ public class BitbucketApiService {
             return bitbucketUser;
         }
         throw new BitbucketMissingPermissionException(
-                "Your Bitbucket credentials lack one required privilege scopes: [Account Read]");
+            "Your Bitbucket credentials lack one required privilege scopes: [Account Read]");
     }
 
     private BitbucketUser getBitbucketUserV2(Token accessToken) {
@@ -102,8 +100,8 @@ public class BitbucketApiService {
                 Response response1 = request1.send();
                 String json1 = response1.getBody();
 
-                LOGGER.finest("Response from bitbucket api " + url);
-                LOGGER.finest(json1);
+                LOGGER.info("Response from bitbucket api " + url);
+                LOGGER.info(json1);
 
                 BitBucketTeamsResponse bitBucketTeamsResponse = gson.fromJson(json1, BitBucketTeamsResponse.class);
 
@@ -111,6 +109,7 @@ public class BitbucketApiService {
                     for (BitbucketTeams team : bitBucketTeamsResponse.getTeamsList()) {
                         String authority = team.getUsername() + "::" + role;
                         bitbucketUser.addAuthority(authority);
+                        LOGGER.info(authority);
                     }
                 }
                 url = bitBucketTeamsResponse.getNext();
@@ -118,17 +117,18 @@ public class BitbucketApiService {
         } catch (Exception e) {
             // Some error, So ignore it and move on.
             e.printStackTrace();
+            LOGGER.info(e.toString());
         }
     }
 
     public UserDetails getUserByUsername(String username) {
         InputStreamReader reader = null;
-        UserDetails userResponce = null;
+        UserDetails userResponse = null;
         try {
             URL url = new URL(API2_ENDPOINT + "workspaces/" + username);
             reader = new InputStreamReader(url.openStream(), "UTF-8");
             Gson gson = new Gson();
-            userResponce = gson.fromJson(reader, BitbucketUser.class);
+            userResponse = gson.fromJson(reader, BitbucketUser.class);
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         } catch (MalformedURLException e) {
@@ -139,11 +139,7 @@ public class BitbucketApiService {
             IOUtils.closeQuietly(reader);
         }
 
-        if (userResponce != null) {
-            return userResponce;
-        } else {
-            return null;
-        }
+        return userResponse;
     }
 
 }
