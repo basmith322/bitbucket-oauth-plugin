@@ -2,7 +2,7 @@ package org.jenkinsci.plugins.api;
 
 import com.google.gson.annotations.SerializedName;
 
-public class BitbucketTeams
+public class BitBucketWorkspace
 {
     @SerializedName("slug")
     String username;

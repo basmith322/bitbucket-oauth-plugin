@@ -15,9 +15,8 @@ import org.scribe.oauth.OAuthService;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 
 public class BitbucketApiService {
@@ -26,7 +25,7 @@ public class BitbucketApiService {
 
     private static final String API2_ENDPOINT = "https://api.bitbucket.org/2.0/";
 
-    private OAuthService service;
+    private final OAuthService oAuthService;
 
     public BitbucketApiService(String apiKey, String apiSecret) {
         this(apiKey, apiSecret, null);
@@ -38,20 +37,20 @@ public class BitbucketApiService {
         if (StringUtils.isNotBlank(callback)) {
             builder.callback(callback);
         }
-        service = builder.build();
+        oAuthService = builder.build();
     }
 
-    public Token createRquestToken() {
-        return service.getRequestToken();
+    public Token createRequestToken() {
+        return oAuthService.getRequestToken();
     }
 
     public String createAuthorizationCodeURL(Token requestToken) {
-        return service.getAuthorizationUrl(requestToken);
+        return oAuthService.getAuthorizationUrl(requestToken);
     }
 
     public Token getTokenByAuthorizationCode(String code, Token requestToken) {
         Verifier v = new Verifier(code);
-        return service.getAccessToken(requestToken, v);
+        return oAuthService.getAccessToken(requestToken, v);
     }
 
     public BitbucketUser getUserByToken(Token accessToken) {
@@ -59,8 +58,8 @@ public class BitbucketApiService {
 
         bitbucketUser.addAuthority("authenticated");
 
-        findAndAddUserTeamAccess(accessToken, bitbucketUser, "admin");
-        findAndAddUserTeamAccess(accessToken, bitbucketUser, "contributor");
+        findAndAddUserTeamAccess(accessToken, bitbucketUser, "owner");
+        findAndAddUserTeamAccess(accessToken, bitbucketUser, "collaborator");
         findAndAddUserTeamAccess(accessToken, bitbucketUser, "member");
 
         return bitbucketUser;
@@ -78,12 +77,12 @@ public class BitbucketApiService {
     private BitbucketUser getBitbucketUserV2(Token accessToken) {
         // require "Account Read" permission
         OAuthRequest request = new OAuthRequest(Verb.GET, API2_ENDPOINT + "user");
-        service.signRequest(accessToken, request);
+        oAuthService.signRequest(accessToken, request);
         Response response = request.send();
         String json = response.getBody();
         Gson gson = new Gson();
         BitbucketUser bitbucketUser = gson.fromJson(json, BitbucketUser.class);
-        if (bitbucketUser == null || StringUtils.isEmpty(bitbucketUser.username)) {
+        if (bitbucketUser == null || StringUtils.isEmpty(bitbucketUser.getUsername())) {
             return null;
         }
         return bitbucketUser;
@@ -96,7 +95,7 @@ public class BitbucketApiService {
         try {
             do {
                 OAuthRequest request1 = new OAuthRequest(Verb.GET, url);
-                service.signRequest(accessToken, request1);
+                oAuthService.signRequest(accessToken, request1);
                 Response response1 = request1.send();
                 String json1 = response1.getBody();
 
@@ -105,8 +104,8 @@ public class BitbucketApiService {
 
                 BitBucketTeamsResponse bitBucketTeamsResponse = gson.fromJson(json1, BitBucketTeamsResponse.class);
 
-                if (CollectionUtils.isNotEmpty(bitBucketTeamsResponse.getTeamsList())) {
-                    for (BitbucketTeams team : bitBucketTeamsResponse.getTeamsList()) {
+                if (CollectionUtils.isNotEmpty(bitBucketTeamsResponse.getWorkSpaceList())) {
+                    for (BitBucketWorkspace team : bitBucketTeamsResponse.getWorkSpaceList()) {
                         String authority = team.getUsername() + "::" + role;
                         bitbucketUser.addAuthority(authority);
                         LOGGER.info(authority);
@@ -126,13 +125,9 @@ public class BitbucketApiService {
         UserDetails userResponse = null;
         try {
             URL url = new URL(API2_ENDPOINT + "workspaces/" + username);
-            reader = new InputStreamReader(url.openStream(), "UTF-8");
+            reader = new InputStreamReader(url.openStream(), StandardCharsets.UTF_8);
             Gson gson = new Gson();
             userResponse = gson.fromJson(reader, BitbucketUser.class);
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
